@@ -6,14 +6,15 @@
 
 func_HELP() {
     
-    if [[ "$1" != "" ]]; then
+    if [[ "$1" != "" ]]
+    then
         printf '\n'
         printf '%s\n' "ERROR: $@"
     fi
     
     cat << 'EOF'
 
-Dead Man's Switch v1.0 | Copyright (c) 2020 Perkolator
+Dead Man's Switch v1.0.0 | Copyright (c) 2020 Perkolator
 https://github.com/Perkolator/dead-mans-switch
 Licensed under the MIT License as described in the file LICENSE.
 
@@ -83,7 +84,8 @@ func_ERROR() {
     printf '\n' 1>&2
     printf '%s\n' "ERROR: $@" 1>&2
     
-    if [[ "$str_FULLLOG" != "" ]]; then
+    if [[ "$str_FULLLOG" != "" ]]
+    then
         printf '\n%s\n' '--- FULL LOG ----------------------------' 1>&2
         printf '%s\n' "$str_FULLLOG" 1>&2
     fi
@@ -98,6 +100,7 @@ func_ERROR() {
 int_DAYS=3
 int_LOG=1
 int_EMAIL=0
+
 str_FULLLOG=''
 str_UNMOUNTLOG=''
 str_SYNOCONNDB='/var/log/synolog/.SYNOCONNDB'
@@ -108,8 +111,9 @@ str_SYNOCONNDB='/var/log/synolog/.SYNOCONNDB'
 
 # Check that the script was ran from Synology Task Scheduler.
 str_PPCOMM=$( ps --no-headers --format comm $PPID )
+
 if ! [[ "$str_PPCOMM" == "synoschedtask" \
-        || "$str_PPCOMM" == "SYNO.Core.TaskS" ]]
+     || "$str_PPCOMM" == "SYNO.Core.TaskS" ]]
 then
     func_HELP "Script was not run from Synology DSM Task Scheduler!" \
                 "Parent process command was: '$str_PPCOMM'," \
@@ -118,52 +122,60 @@ fi
 
 
 # Check if sqlite3 can be found and is executable.
-if [[ ! -x "$( command -v sqlite3 )" ]]; then
+if [[ ! -x "$( command -v sqlite3 )" ]]
+then
     func_ERROR "Can't find or run 'sqlite3' program!"
 fi
 
 # Check if synoshare can be found and is executable.
-if [[ ! -x "$( command -v synoshare )" ]]; then
+if [[ ! -x "$( command -v synoshare )" ]]
+then
     func_ERROR "Can't find or run 'synoshare' program!"
 fi
 
 
 # Check if the "--get" option of "synoshare" has been changed.
-if [[ "$( synoshare --help | grep -c \
-        '^[[:blank:]]*--get sharename[[:blank:]]*$' )" != "1" ]]
+str_REGEX='^[[:blank:]]*--get sharename[[:blank:]]*$'
+
+if [[ "$( synoshare --help | grep -c "$str_REGEX" )" != "1" ]]
 then
     func_ERROR "The '--get' option of 'synoshare' program has been changed!"
 fi
 
 # Check if the "--enc_unmount" option of "synoshare" has been changed.
-if [[ "$( synoshare --help | grep -c \
-        '^[[:blank:]]*--enc_unmount sharename1 sharename2 \.\.\.[[:blank:]]*$' )" \
-        != "1" ]]
+str_REGEX='^[[:blank:]]*--enc_unmount sharename1 sharename2 \.\.\.[[:blank:]]*$'
+
+if [[ "$( synoshare --help | grep -c "$str_REGEX" )" != "1" ]]
 then
     func_ERROR \
         "The '--enc_unmount' option of 'synoshare' program has been changed!"
 fi
 
 # Check if the "--enum" option of "synoshare" has been changed.
-if [[ "$( synoshare --help | grep -c \
-        '^[[:blank:]]*--enum {ALL}|{LOCAL|USB|SATA|ENC|DEC|GLUSTER}{+}[[:blank:]]*$' )" \
-        != "1" ]]
+str_REGEX='^[[:blank:]]*'
+str_REGEX+='--enum {ALL}|{LOCAL|USB|SATA|ENC|DEC|GLUSTER}{+}[[:blank:]]*$'
+
+if [[ "$( synoshare --help | grep -c "$str_REGEX" )" != "1" ]]
 then
     func_ERROR "The '--enum' option of 'synoshare' program has been changed!"
 fi
 
+
 # Check if the output of 'synoshare --enum' has been changed.
 # Also save the line number where the last status message appears.
-int_LISTEDLINENRO="$( synoshare --enum DEC \
-                    | grep -n '^[0-9]\+ Listed:[[:blank:]]*$' \
-                    | cut -f1 -d: )"
-if [[ "$int_LISTEDLINENRO" == "" ]]; then
+str_REGEX='^[0-9]\+ Listed:[[:blank:]]*$'
+
+int_LISTEDLINE="$( synoshare --enum DEC | grep -n "$str_REGEX" | cut -f1 -d: )"
+
+if [[ "$int_LISTEDLINE" == "" ]]
+then
     func_ERROR "Output of 'synoshare --enum' has been changed!"
 fi
 
 
 # Check if the "Connection" DB file can't be read.
-if [[ ! -r "$str_SYNOCONNDB" ]]; then
+if [[ ! -r "$str_SYNOCONNDB" ]]
+then
     func_ERROR "The file '$str_SYNOCONNDB' can't be read!"
 fi
 
@@ -179,13 +191,15 @@ mix_SQLTEST="$( sqlite3 "$str_SYNOCONNDB" '
 ' 2>&1 )"
 
 # Check if the SQL query produced an error.
-if [[ "$?" != "0" ]]; then
+if [[ "$?" != "0" ]]
+then
     func_ERROR "SQL query failed! The Connection DB has been altered." \
                 "Output from sqlite3: $mix_SQLTEST"
 fi
 
 # Check if the SQL query returned zero share access entries.
-if [[ "$mix_SQLTEST" == "" ]]; then
+if [[ "$mix_SQLTEST" == "" ]]
+then
     func_ERROR "Can't find any share access entries from Connection DB!" \
                 "Synology might have changed the log message syntax," \
                 "or there are no connections to shares yet."
@@ -193,7 +207,9 @@ fi
 
 # Check if the SQL query returned an invalid timestamp.
 date --date="@$mix_SQLTEST" >/dev/null 2>&1
-if [[ "$?" != "0" ]]; then
+
+if [[ "$?" != "0" ]]
+then
     func_ERROR "Can't find valid timestamps from Connection DB!"
 fi
 
@@ -201,14 +217,15 @@ fi
 ##### CMDLINE OPTIONS & ARGUMENTS ##############################################
 
 
-while [[ "$1" != "" ]]; do
-    
+while [[ "$1" != "" ]]
+do
     case "$1" in
         
         -d | --days )
             
             # Check for a valid option argument.
-            if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+            if [[ ! "$2" =~ ^[0-9]+$ ]]
+            then
                 func_USAGE "Argument for option '$1' is missing or invalid."
             fi
             
@@ -219,7 +236,8 @@ while [[ "$1" != "" ]]; do
         -l | --log )
             
             # Check for a valid option argument.
-            if [[ "$2" != [0-2] ]]; then
+            if [[ "$2" != [0-2] ]]
+            then
                 func_USAGE "Argument for option '$1' is missing or invalid."
             fi
             
@@ -243,7 +261,6 @@ while [[ "$1" != "" ]]; do
     esac
     
     shift
-    
 done
 
 
@@ -252,13 +269,15 @@ done
 
 # Read output of "synoshare --enum DEC" as lines.
 # Skipping the status message lines at the beginning.
-while IFS=$'\n' read -r str_LINE; do
-    
+while IFS=$'\n' read -r str_LINE
+do
     str_LINELOG=''
     
     # Check if the line has a real share name.
     synoshare --get "$str_LINE" >/dev/null 2>&1
-    if [[ "$?" != "0" ]]; then
+    
+    if [[ "$?" != "0" ]]
+    then
         func_ERROR "Non-existing share name of '$str_LINE'" \
                     "was found from the output of 'synoshare --enum'!" \
                     "Synology might have changed the output syntax."
@@ -278,16 +297,19 @@ while IFS=$'\n' read -r str_LINE; do
     str_LINELOG+=$'\n'"Share  : $str_LINE"
     
     # Process a share that has a last access timestamp in the DB.
-    if [[ "$int_TIMESTAMP" != "" ]]; then
-        
+    if [[ "$int_TIMESTAMP" != "" ]]
+    then
         str_LINELOG+=$'\n'"Access : $( date -R --date="@$int_TIMESTAMP" )"
         str_LINELOG+=$'\n'"Action : "
         
         # Check if a share should be closed.
         if [[ "$( date +%s )" -ge "$(( $int_DAYS * 86400 + $int_TIMESTAMP ))" ]]
         then
+            # Try unmounting.
             str_UNMOUNTRESULT="$( synoshare --enc_unmount "$str_LINE" 2>&1 )"
-            if [[ "$?" != "0" ]]; then
+            
+            if [[ "$?" != "0" ]]
+            then
                 func_ERROR "There was a problem unmounting '$str_LINE' share!" \
                             "Output from synoshare: $str_UNMOUNTRESULT"
             fi
@@ -305,8 +327,11 @@ while IFS=$'\n' read -r str_LINE; do
     else
         str_LINELOG+=$'\n'"Access : -"
         
+        # Try unmounting.
         str_UNMOUNTRESULT="$( synoshare --enc_unmount "$str_LINE" 2>&1 )"
-        if [[ "$?" != "0" ]]; then
+        
+        if [[ "$?" != "0" ]]
+        then
             func_ERROR "There was a problem unmounting '$str_LINE' share!" \
                         "Output from synoshare: $str_UNMOUNTRESULT"
         fi
@@ -317,35 +342,37 @@ while IFS=$'\n' read -r str_LINE; do
         str_FULLLOG+="$str_LINELOG"
     fi
     
-done < <( synoshare --enum DEC | tail -n +"$(( $int_LISTEDLINENRO + 1 ))" )
+done < <( synoshare --enum DEC | tail -n +"$(( $int_LISTEDLINE + 1 ))" )
 
 
 # Check if there were no mounted shares at all.
-if [[ "$str_FULLLOG" == "" ]]; then
+if [[ "$str_FULLLOG" == "" ]]
+then
     str_FULLLOG=$'\n''There were no mounted encrypted shares.'
 fi
 
 
 # Unmount logging.
 # Empty unmount log is not saved to log file nor emailed.
-if [[ "$int_LOG" == "1" && "$str_UNMOUNTLOG" != "" ]]; then
-    
+if [[ "$int_LOG" == "1" && "$str_UNMOUNTLOG" != "" ]]
+then
     printf '\n%s\n' '--- UNMOUNT LOG -------------------------'
     printf '%s\n' "$str_UNMOUNTLOG"
     
-    if [[ "$int_EMAIL" == "1" ]]; then
+    if [[ "$int_EMAIL" == "1" ]]
+    then
         exit 1
     fi
 fi
 
 # Full logging.
-if [[ "$int_LOG" == "2" ]]; then
-    
+if [[ "$int_LOG" == "2" ]]
+then
     printf '\n%s\n' '--- FULL LOG ----------------------------'
     printf '%s\n' "$str_FULLLOG"
     
-    if [[ "$int_EMAIL" == "1" ]]; then
+    if [[ "$int_EMAIL" == "1" ]]
+    then
         exit 1
     fi
 fi
-
