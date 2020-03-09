@@ -7,7 +7,7 @@ Tested to work with Synology DSM version 6.2.2-24922-4 (2019-11-05).
 
 ## Download
 
-Latest release can be found from the [releases page](https://github.com/Perkolator/dead-mans-switch/releases).
+Latest release can be found from the [releases page](https://github.com/Perkolator/dead-mans-switch/releases) and full changelog [here](https://github.com/Perkolator/dead-mans-switch/blob/master/CHANGELOG.md).
 
 
 ## Help
