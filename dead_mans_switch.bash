@@ -4,9 +4,9 @@
 ##### FUNCTIONS ################################################################
 
 
-func_HELP() {
+function func_HELP {
     
-    if [[ "$1" != "" ]]
+    if [[ "$#" != "0" ]]
     then
         printf '\n'
         printf '%s\n' "ERROR: $@"
@@ -14,111 +14,110 @@ func_HELP() {
     
     cat << 'EOF'
 
-Dead Man's Switch v1.0.0 | Copyright (c) 2020 Perkolator
+Dead Man's Switch v2.0.0 | Copyright (c) 2020-2023 Perkolator
 https://github.com/Perkolator/dead-mans-switch
 Licensed under the MIT License as described in the file LICENSE.
 
 Script for unmounting inactive encrypted shares automatically.
-Meant to be run from Synology DSM Task Scheduler.
+Meant to be run from Synology DSM 6/7 Task Scheduler.
+More information in the README.md file.
 
-Usage  : bash <full path>/dead_mans_switch.bash [OPTION]...
-Example: bash <full path>/dead_mans_switch.bash -d 2 --email
+Usage  : /bin/bash <full path>/dead_mans_switch.bash [OPTION]...
+Example: /bin/bash /volume1/share/folder/dead_mans_switch.bash -d 3 --email
 
-  -d NUM, --days NUM   Unmount after number of days of inactivity. (default 3)
-  -l NUM, --log NUM    Log script output: 0 = No logging
-                                          1 = Unmount logging (default)
-                                          2 = Full logging
-  -e, --email          Email log. Empty unmount logs will not be sent.
+  -d NUM, --days NUM   Unmount after number of days of inactivity. (default 2)
+  -s      --strict     Unmount ALL if even one of the mounted encrypted shares
+                       is found inactive (or has never been accessed, or returns
+                       an error or an invalid time value from a database query),
+                       regardless of when other shares have been last accessed.
+  -l NUM, --log NUM    Logging: 0) None, 1) Unmount events (default), 2) Full
+  -e,     --email      Email log. Empty unmount logs will not be sent.
                        Note! Script exits with an error code for this to work.
+  -h,     --help       Display help text.
 
   Email notification service from Synology "Control Panel -> Notification"
   needs to be enabled for the email log sending feature to work properly.
 
-  "Save output results" needs to be turned on from Synology
+  "Save output results" needs to be enabled from Synology
   "Control Panel -> Task Scheduler -> Settings" for the logging to work.
 
   "Send run details by email" and "Send run details only when the script
-  terminates abnormally" needs to be turned on from the task settings.
+  terminates abnormally" needs to be enabled from the task settings.
 
   Script file needs executable rights and task should be run with "root" user.
 
-Notes:
-
-"Inactivity" means no user connections to shares. The precision of detecting
-inactivity isn't that great because Synology doesn't log every connection to a
-share. It's safe to assume at least one logged connection to a share per day if
-the user is actively using the share. Scheduling a task to run the script once
-or twice a day should be enough to give reasonable precision and functionality.
-
-At first, and also after Synology DSM update, it's wise to run the script with
-full logging and email options for a while to see that all works as expected.
-
-Any detected errors are always emailed, whether the email option is used or not.
-
-If some machine on your network, or remotely, automatically connects
-to an encrypted share, this script obviously won't work properly.
-
 EOF
-
-    exit 1
-}
-
-
-func_USAGE() {
-
-    printf '\n' 1>&2
-    printf '%s\n' "ERROR: $@" 1>&2
-    printf '\n' 1>&2
-    
-    printf '%s\n' \
-            "Script for unmounting inactive encrypted shares automatically." \
-            "Usage: bash <full path>/dead_mans_switch.bash [OPTION]..." \
-            "Try '--help' option for more information." 1>&2
     
     exit 1
 }
 
 
-func_ERROR() {
+function func_ERROR {
     
-    printf '\n' 1>&2
-    printf '%s\n' "ERROR: $@" 1>&2
+    printf '\n'
+    printf '%s\n' "ERROR(S): $@"
     
     if [[ "$str_FULLLOG" != "" ]]
     then
-        printf '\n%s\n' '--- FULL LOG ----------------------------' 1>&2
-        printf '%s\n' "$str_FULLLOG" 1>&2
+        printf '\n%s\n' '--- FULL LOG -----------------------------'
+        printf '%s\n' "$str_FULLLOG"
     fi
     
     exit 1
 }
 
 
+function func_UNMOUNT {
+    
+    local str_local_SHARENAME="$1"
+    local str_local_RESULT=''
+    local int_local_i=0
+    
+    # Try to unmount the share max 3 times.
+    for int_local_i in {1..3}
+    do
+        str_local_RESULT="$( synoshare --enc_unmount \
+                                 "$str_local_SHARENAME" 2>&1 )"
+        
+        if [[ "$?" == "0" ]]
+        then
+            # Break out from function and send "ok" return code.
+            return 0
+        else
+            # Little pause if trying unmounting again.
+            if [[ "$int_local_i" != "3" ]]
+            then
+                sleep 2
+            fi
+        fi
+    done
+    
+    # Return the output of the last failed unmount command.
+    printf '%s' "$str_local_RESULT"
+    
+    # Send "error" return code.
+    return 1
+}
+
+
 ##### VARIABLES ################################################################
 
 
-int_DAYS=3
+int_DAYS=2
+int_STRICT=0
 int_LOG=1
 int_EMAIL=0
 
+int_TIMESTAMP="$( date +%s )"
+
+str_ERRORLOG=''
 str_FULLLOG=''
 str_UNMOUNTLOG=''
+
 str_SYNOCONNDB='/var/log/synolog/.SYNOCONNDB'
 
 
 ##### CHECK FOR PROBLEMS #######################################################
-
-
-# Check that the script was ran from Synology Task Scheduler.
-str_PPCOMM=$( ps --no-headers --format comm $PPID )
-
-if ! [[ "$str_PPCOMM" == "synoschedtask" \
-     || "$str_PPCOMM" == "SYNO.Core.TaskS" ]]
-then
-    func_HELP "Script was not run from Synology DSM Task Scheduler!" \
-                "Parent process command was: '$str_PPCOMM'," \
-                "expected: 'synoschedtask' or 'SYNO.Core.TaskS'."
-fi
 
 
 # Check if sqlite3 can be found and is executable.
@@ -137,7 +136,7 @@ fi
 # Check if the "--get" option of "synoshare" has been changed.
 str_REGEX='^[[:blank:]]*--get sharename[[:blank:]]*$'
 
-if [[ "$( synoshare --help | grep -c "$str_REGEX" )" != "1" ]]
+if [[ "$( synoshare --help | grep --count -- "$str_REGEX" )" != "1" ]]
 then
     func_ERROR "The '--get' option of 'synoshare' program has been changed!"
 fi
@@ -145,19 +144,28 @@ fi
 # Check if the "--enc_unmount" option of "synoshare" has been changed.
 str_REGEX='^[[:blank:]]*--enc_unmount sharename1 sharename2 \.\.\.[[:blank:]]*$'
 
-if [[ "$( synoshare --help | grep -c "$str_REGEX" )" != "1" ]]
+if [[ "$( synoshare --help | grep --count -- "$str_REGEX" )" != "1" ]]
 then
     func_ERROR \
         "The '--enc_unmount' option of 'synoshare' program has been changed!"
 fi
 
 # Check if the "--enum" option of "synoshare" has been changed.
-str_REGEX='^[[:blank:]]*'
-str_REGEX+='--enum {ALL}|{LOCAL|USB|SATA|ENC|DEC|GLUSTER}{+}[[:blank:]]*$'
+# DSM 7
+str_REGEX='^[[:blank:]]*--enum {ALL}|{LOCAL|USB|SATA|ENC|DEC|GLUSTER|C2|'
+str_REGEX+='COLD-STORAGE|MISSING-VOL|OFFLINE-VOL|CEPH|WORM}{+}[[:blank:]]*$'
 
-if [[ "$( synoshare --help | grep -c "$str_REGEX" )" != "1" ]]
+if [[ "$( synoshare --help | grep --count -- "$str_REGEX" )" != "1" ]]
 then
-    func_ERROR "The '--enum' option of 'synoshare' program has been changed!"
+    # DSM 6
+    str_REGEX='^[[:blank:]]*'
+    str_REGEX+='--enum {ALL}|{LOCAL|USB|SATA|ENC|DEC|GLUSTER}{+}[[:blank:]]*$'
+    
+    if [[ "$( synoshare --help | grep --count -- "$str_REGEX" )" != "1" ]]
+    then
+        func_ERROR \
+            "The '--enum' option of 'synoshare' program has been changed!"
+    fi
 fi
 
 
@@ -165,7 +173,9 @@ fi
 # Also save the line number where the last status message appears.
 str_REGEX='^[0-9]\+ Listed:[[:blank:]]*$'
 
-int_LISTEDLINE="$( synoshare --enum DEC | grep -n "$str_REGEX" | cut -f1 -d: )"
+int_LISTEDLINE="$( synoshare --enum DEC \
+                 | grep --line-number -- "$str_REGEX" \
+                 | cut --delimiter=":" --fields=1 )"
 
 if [[ "$int_LISTEDLINE" == "" ]]
 then
@@ -181,28 +191,28 @@ fi
 
 
 # SQL query for testing.
-mix_SQLTEST="$( sqlite3 "$str_SYNOCONNDB" '
-    SELECT time
+mix_SQLTEST="$( sqlite3 -readonly -safe file:"$str_SYNOCONNDB" \
+   'SELECT time
     FROM logs
     WHERE msg
     LIKE "%accessed shared folder [%"
     ORDER BY id
-    LIMIT 1;
-' 2>&1 )"
+    LIMIT 1;' 2>&1 )"
 
 # Check if the SQL query produced an error.
 if [[ "$?" != "0" ]]
 then
     func_ERROR "SQL query failed! The Connection DB has been altered." \
-                "Output from sqlite3: $mix_SQLTEST"
+               "Output from sqlite3:" \
+               "'$mix_SQLTEST'"
 fi
 
-# Check if the SQL query returned zero share access entries.
+# Check if the SQL query returned zero share "accessed" entries.
 if [[ "$mix_SQLTEST" == "" ]]
 then
-    func_ERROR "Can't find any share access entries from Connection DB!" \
-                "Synology might have changed the log message syntax," \
-                "or there are no connections to shares yet."
+    func_ERROR "Can't find any share 'accessed' entries from Connection DB!" \
+               "Synology might have changed the log message syntax," \
+               "or there are no connections to shares yet."
 fi
 
 # Check if the SQL query returned an invalid timestamp.
@@ -214,19 +224,19 @@ then
 fi
 
 
-##### CMDLINE OPTIONS & ARGUMENTS ##############################################
+##### OPTIONS & PARAMETERS #####################################################
 
 
-while [[ "$1" != "" ]]
+while [[ "$#" != "0" ]]
 do
     case "$1" in
         
         -d | --days )
             
-            # Check for a valid option argument.
+            # Check for a valid option parameter.
             if [[ ! "$2" =~ ^[0-9]+$ ]]
             then
-                func_USAGE "Argument for option '$1' is missing or invalid."
+                func_HELP "Parameter for option '$1' is missing or invalid."
             fi
             
             shift
@@ -235,14 +245,19 @@ do
             
         -l | --log )
             
-            # Check for a valid option argument.
+            # Check for a valid option parameter.
             if [[ "$2" != [0-2] ]]
             then
-                func_USAGE "Argument for option '$1' is missing or invalid."
+                func_HELP "Parameter for option '$1' is missing or invalid."
             fi
             
             shift
             int_LOG=$1
+            ;;
+            
+        -s | --strict )
+            
+            int_STRICT=1
             ;;
             
         -e | --email )
@@ -256,7 +271,7 @@ do
             ;;
             
         * )
-            func_USAGE "Invalid option '$1'."
+            func_HELP "Invalid option '$1'."
             ;;
     esac
     
@@ -267,96 +282,247 @@ done
 ##### MAIN #####################################################################
 
 
+# Get all valid mounted encrypted share names.
 # Read output of "synoshare --enum DEC" as lines.
 # Skipping the status message lines at the beginning.
+#
+# Also get all last "accessed" timestamps of found mounted encrypted shares
+# at this point because when unmounting an encrypted share in DSM 7,
+# all other mounted encrypted shares get new "accessed" database entries
+# if there are still "active" connections to those shares.
+arr_SHARENAME=()
+arr_SHARETIME=()
 while IFS=$'\n' read -r str_LINE
 do
-    str_LINELOG=''
-    
     # Check if the line has a real share name.
     synoshare --get "$str_LINE" >/dev/null 2>&1
     
     if [[ "$?" != "0" ]]
     then
-        func_ERROR "Non-existing share name of '$str_LINE'" \
-                    "was found from the output of 'synoshare --enum'!" \
-                    "Synology might have changed the output syntax."
+        str_ERRORLOG+="$( printf '%s\n' \
+            $'\n' \
+            "- Non-existing share name of '$str_LINE'" \
+            "was found from the output of 'synoshare --enum'!" \
+            "Synology might have changed the output syntax." )"
+        
+        # Skip rest of the iteration for the current line.
+        continue
     fi
     
-    # Get the timestamp of last access to a share.
-    int_TIMESTAMP="$( sqlite3 "$str_SYNOCONNDB" '
-        SELECT time
+    
+    # Get the timestamp of the last access to a share.
+    mix_SQLRESULT="$( sqlite3 -readonly -safe file:"$str_SYNOCONNDB" \
+       'SELECT time
         FROM logs
         WHERE msg
         LIKE "%accessed shared folder ['"$str_LINE"']%"
         ORDER BY id
         DESC
-        LIMIT 1;
-    ' )"
+        LIMIT 1;' 2>&1 )"
     
-    str_LINELOG+=$'\n'"Share  : $str_LINE"
-    
-    # Process a share that has a last access timestamp in the DB.
-    if [[ "$int_TIMESTAMP" != "" ]]
+    # Check if the SQL query produced an error.
+    if [[ "$?" != "0" ]]
     then
-        str_LINELOG+=$'\n'"Access : $( date -R --date="@$int_TIMESTAMP" )"
-        str_LINELOG+=$'\n'"Action : "
+        str_ERRORLOG+="$( printf '%s\n' \
+            $'\n' \
+            "- SQL query to Connection DB failed for share '$str_LINE'!" \
+            "As a precaution, the share will be unmounted immediately." \
+            "Output from sqlite3:" \
+            "'$mix_SQLRESULT'" )"
         
-        # Check if a share should be closed.
-        if [[ "$( date +%s )" -ge "$(( $int_DAYS * 86400 + $int_TIMESTAMP ))" ]]
-        then
-            # Try unmounting.
-            str_UNMOUNTRESULT="$( synoshare --enc_unmount "$str_LINE" 2>&1 )"
-            
-            if [[ "$?" != "0" ]]
-            then
-                func_ERROR "There was a problem unmounting '$str_LINE' share!" \
-                            "Output from synoshare: $str_UNMOUNTRESULT"
-            fi
-            
-            str_LINELOG+="Unmounted"$'\n'
-            
-            str_UNMOUNTLOG+="$str_LINELOG"
-        else
-            str_LINELOG+="-"$'\n'
-        fi
-        
-        str_FULLLOG+="$str_LINELOG"
-        
-    # Unmount share automatically if there's no last access timestamp in the DB.
-    else
-        str_LINELOG+=$'\n'"Access : -"
-        
-        # Try unmounting.
-        str_UNMOUNTRESULT="$( synoshare --enc_unmount "$str_LINE" 2>&1 )"
+        # Set the timestamp value as error, the share will be closed later.
+        mix_SQLRESULT="ERROR"
+    fi
+    
+    # Check if the SQL query returned an invalid timestamp.
+    if [[ "$mix_SQLRESULT" != "" \
+       && "$mix_SQLRESULT" != "ERROR" ]]
+    then
+        date --date="@$mix_SQLRESULT" >/dev/null 2>&1
         
         if [[ "$?" != "0" ]]
         then
-            func_ERROR "There was a problem unmounting '$str_LINE' share!" \
-                        "Output from synoshare: $str_UNMOUNTRESULT"
+            str_ERRORLOG+="$( printf '%s\n' \
+                $'\n' \
+                "- SQL query to Connection DB failed to find" \
+                "a valid timestamp for share '$str_LINE'!" \
+                "As a precaution, the share will be unmounted immediately." )"
+            
+            # Set the timestamp value as error, the share will be closed later.
+            mix_SQLRESULT="ERROR"
         fi
-        
-        str_LINELOG+=$'\n'"Action : Unmounted"$'\n'
-        
-        str_UNMOUNTLOG+="$str_LINELOG"
-        str_FULLLOG+="$str_LINELOG"
     fi
     
-done < <( synoshare --enum DEC | tail -n +"$(( $int_LISTEDLINE + 1 ))" )
+    arr_SHARENAME+=( "$str_LINE" )
+    arr_SHARETIME+=( "$mix_SQLRESULT" )
+    
+done < <( synoshare --enum DEC | tail --lines=+"$(( $int_LISTEDLINE + 1 ))" )
 
 
-# Check if there were no mounted shares at all.
+# If "strict" option was used, check if ALL mounted encrypted shares should be
+# unmounted if even one them is found inactive (or other conditions are met),
+# regardless of when other mounted encrypted shares have been last accessed.
+#
+# Do not check if only one mounted encrypted share was found.
+if [[ "$int_STRICT"          == "1" \
+   && "${#arr_SHARENAME[@]}" != "1" ]]
+then
+    for i in "${!arr_SHARENAME[@]}"
+    do
+        # For a share that had a valid "accessed" timestamp in the DB.
+        if [[ "${arr_SHARETIME[$i]}" != "" \
+           && "${arr_SHARETIME[$i]}" != "ERROR" ]]
+        then
+            # Check if a share should be closed.
+            #
+            # When unmounting a share in DSM 7, it creates new "accessed"
+            # timestamps for shares that have "active" connections to them.
+            # Making the comparison timestamp a little
+            # smaller (120 sec) avoids delays to next unmounts
+            # those new timestamps might otherwise create.
+            if [[ "$int_TIMESTAMP" -ge \
+                  "$(( $int_DAYS * 86400 + ${arr_SHARETIME[$i]} - 120 ))" ]]
+            then
+                # Set to close all shares.
+                int_STRICT="2"
+                # Save the share name that triggered it.
+                str_STRICTSHARENAME="${arr_SHARENAME[$i]}"
+                # Jump out of the for loop.
+                break
+            fi
+        
+        # For a share that:
+        # - had no "accessed" timestamp in the database.
+        # - failed the SQL query for a timestamp.
+        # - returned an invalid timestamp from the SQL query.
+        else
+            # Set to close all shares.
+            int_STRICT="2"
+            # Save the share name that triggered it.
+            str_STRICTSHARENAME="${arr_SHARENAME[$i]}"
+            # Jump out of the for loop.
+            break
+        fi
+    done
+fi
+
+
+# If all mounted encrypted shares are to be forced
+# to unmount, write a note about it in the logs.
+if [[ "$int_STRICT" == "2" ]]
+then
+    str_UNMOUNTLOG=$'\n'"$( printf '%s\n' \
+        "All mounted encrypted shares were selected" \
+        "for unmounting because the 'strict' option" \
+        "was used and one of the conditions was met" \
+        "for a share: '$str_STRICTSHARENAME'."  )"$'\n'
+    
+    str_FULLLOG="$str_UNMOUNTLOG"
+fi
+
+
+# Iterate through all found mounted encrypted shares,
+# if any, and try to unmount if conditions apply.
+for i in "${!arr_SHARENAME[@]}"
+do
+    str_LINELOG=$'\n'"Share  : ${arr_SHARENAME[$i]}"
+    
+    # For a share that had a valid "accessed" timestamp in the DB.
+    if [[ "${arr_SHARETIME[$i]}" != "" \
+       && "${arr_SHARETIME[$i]}" != "ERROR" ]]
+    then
+        str_LINELOG+=$'\n'"Access : $( date --rfc-email \
+                                            --date="@${arr_SHARETIME[$i]}" )"
+        
+        # Check if a share should be closed.
+        #
+        # When unmounting a share in DSM 7, it creates new "accessed"
+        # timestamps for shares that have "active" connections to them.
+        # Making the comparison timestamp a little smaller (120 sec) avoids
+        # delays to next unmounts those new timestamps might otherwise create.
+        if [[ "$int_STRICT" == "2" ]] \
+           || \
+           [[ "$int_TIMESTAMP" -ge \
+              "$(( $int_DAYS * 86400 + ${arr_SHARETIME[$i]} - 120 ))" ]]
+        then
+            # Try unmounting.
+            str_UNMOUNTRESULT="$( func_UNMOUNT "${arr_SHARENAME[$i]}" )"
+            
+            if [[ "$?" != "0" ]]
+            then
+                str_ERRORLOG+="$( printf '%s\n' \
+                    $'\n' \
+                    "- Failed to unmount share '${arr_SHARENAME[$i]}'!" \
+                    "Output from synoshare:" \
+                    "'$str_UNMOUNTRESULT'" )"
+                
+                str_LINELOG+=$'\n'"Action : - (ERROR)"
+            else
+                str_LINELOG+=$'\n'"Action : Unmounted"
+                
+                str_UNMOUNTLOG+="$str_LINELOG"$'\n'
+            fi
+        else
+            str_LINELOG+=$'\n'"Action : -"
+        fi
+        
+    # Unmount a share automatically that:
+    # - had no "accessed" timestamp in the database.
+    # - failed the SQL query for a timestamp.
+    # - returned an invalid timestamp from the SQL query.
+    else
+        if [[ "${arr_SHARETIME[$i]}" == "ERROR" ]]
+        then
+            str_LINELOG+=$'\n'"Access : - (ERROR)"
+        else
+            str_LINELOG+=$'\n'"Access : -"
+        fi
+        
+        # Try unmounting.
+        str_UNMOUNTRESULT="$( func_UNMOUNT "${arr_SHARENAME[$i]}" )"
+        
+        if [[ "$?" != "0" ]]
+        then
+            str_ERRORLOG+="$( printf '%s\n' \
+                $'\n' \
+                "- Failed to unmount share '${arr_SHARENAME[$i]}'!" \
+                "Output from synoshare:" \
+                "'$str_UNMOUNTRESULT'" )"
+            
+            str_LINELOG+=$'\n'"Action : - (ERROR)"
+            
+        else
+            str_LINELOG+=$'\n'"Action : Unmounted"
+            
+            str_UNMOUNTLOG+="$str_LINELOG"$'\n'
+        fi
+    fi
+    
+    str_FULLLOG+="$str_LINELOG"$'\n'
+    
+done
+
+
+# Check if there were no mounted encrypted shares at all.
 if [[ "$str_FULLLOG" == "" ]]
 then
     str_FULLLOG=$'\n''There were no mounted encrypted shares.'
 fi
 
 
-# Unmount logging.
-# Empty unmount log is not saved to log file nor emailed.
-if [[ "$int_LOG" == "1" && "$str_UNMOUNTLOG" != "" ]]
+# Check if there were errors. Emails both error and full log.
+if [[ "$str_ERRORLOG" != "" ]]
 then
-    printf '\n%s\n' '--- UNMOUNT LOG -------------------------'
+    func_ERROR "$str_ERRORLOG"
+fi
+
+
+# Unmount logging.
+# Empty unmount log is not saved to a log file nor emailed.
+if [[ "$int_LOG"        == "1" \
+   && "$str_UNMOUNTLOG" != "" ]]
+then
+    printf '\n%s\n' '--- UNMOUNT LOG --------------------------'
     printf '%s\n' "$str_UNMOUNTLOG"
     
     if [[ "$int_EMAIL" == "1" ]]
@@ -368,7 +534,7 @@ fi
 # Full logging.
 if [[ "$int_LOG" == "2" ]]
 then
-    printf '\n%s\n' '--- FULL LOG ----------------------------'
+    printf '\n%s\n' '--- FULL LOG -----------------------------'
     printf '%s\n' "$str_FULLLOG"
     
     if [[ "$int_EMAIL" == "1" ]]
