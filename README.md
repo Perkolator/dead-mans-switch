@@ -5,7 +5,7 @@ A script for unmounting inactive encrypted shares automatically on Synology NAS 
 Tested to work with DSM versions:
 - 6.2.2-24922-4 (2019-11-05) ==> 6.2.4-25556 Update 7 (2023-05-02)
 - 7.2-64570 Update 1 (2023-06-19) ==> 7.2-64570 Update 3 (2023-08-03)
-- 7.2.1-69057 (2023-09-26)
+- 7.2.1-69057 (2023-09-26) ==> 7.2.1-69057 Update 1 (2023-10-12)
 
   > Version branches 7.0.x and 7.1.x have not been tested but should work ok.
 
@@ -16,7 +16,6 @@ Latest release can be found from the [releases page](https://github.com/Perkolat
 
 
 ## Help
-
 
 ### Usage
 
@@ -62,6 +61,7 @@ However, if some device on your network, or remotely, automatically connects to 
 In DSM 7, unmounting even one of the encrypted shares creates new "accessed" database entries for all still mounted shares that have active connections to them, for example, if a device is left running with mounted shares.
 
 Version 2.x of this script fixes problems this creates, except one problem because it's difficult to deduce which "accessed" entry from the database would be valid for the purposes of this script. If a new "accessed" database entry is created for a share when unmounting some other share, in other words, when not all shares have the same last "accessed" database entries, this obviously delays the unmounting of the share. However, in this situation, this script **WILL** eventually unmount all shares, it just takes, in overall, double amount of time of what the "days" option is set to. To mitigate this hindrance, a new "strict" option was created and the default value of the "days" option was changed from 3 to 2.
+
 
 ### Miscellaneous
 
