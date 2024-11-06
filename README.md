@@ -4,10 +4,11 @@ A script for unmounting inactive encrypted shares automatically on Synology NAS 
 
 Tested to work with DSM versions:
 - 6.2.2-24922-4 (2019-11-05) ==> 6.2.4-25556 Update 7 (2023-05-02)
-- 7.2-64570 Update 1 (2023-06-19) ==> 7.2-64570 Update 3 (2023-08-03)
-- 7.2.1-69057 (2023-09-26) ==> 7.2.1-69057 Update 5 (2024-04-08)
 
   > Version branches 7.0.x and 7.1.x have not been tested but should work ok.
+- 7.2-64570 Update 1 (2023-06-19) ==> 7.2-64570 Update 3 (2023-08-03)
+- 7.2.1-69057 (2023-09-26) ==> 7.2.1-69057 Update 5 (2024-04-08)
+- 7.2.2-72803 (2024-08-26) ==> 7.2.2-72806 Update 1 (2024-11-05)
 
 
 ## Download
