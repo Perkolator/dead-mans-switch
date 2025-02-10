@@ -8,7 +8,7 @@ Tested to work with DSM versions:
   > Version branches 7.0.x and 7.1.x have not been tested but should work ok.
 - 7.2-64570 Update 1 (2023-06-19) ==> 7.2-64570 Update 3 (2023-08-03)
 - 7.2.1-69057 (2023-09-26) ==> 7.2.1-69057 Update 5 (2024-04-08)
-- 7.2.2-72803 (2024-08-26) ==> 7.2.2-72806 Update 2 (2024-11-26)
+- 7.2.2-72803 (2024-08-26) ==> 7.2.2-72806 Update 3 (2025-02-04)
 
 
 ## Download
