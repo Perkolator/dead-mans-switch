@@ -12,7 +12,7 @@ Tested to work with DSM versions:
 - 7.3-81180 (2025-10-08) ==>
 
 > [!NOTE]
-> DSM 7.3 will be the last upgradable version for my DS218+ device, so I can't test this script for newer DSM version branches. Since my device is still working fine, I have no plans to upgrade to a newer model in the near future. Sorry. Unless somebody wants donate. :)
+> DSM 7.3 will be the last upgradable version for my DS218+ device, so I can't test this script for newer DSM version branches. Since my device is still working fine, I have no plans to upgrade to a newer model in the near future. Sorry. Unless somebody wants to donate. :)
 
 
 ## Download
