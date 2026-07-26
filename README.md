@@ -10,7 +10,7 @@ Tested to work with DSM versions:
 - 7.2.1-69057 (2023-09-26) ==> 7.2.1-69057 Update 5 (2024-04-08)
 - 7.2.2-72803 (2024-08-26) ==> 7.2.2-72806 Update 4 (2025-07-24)
 - 7.3-81180 (2025-10-08) ==> 7.3.2-86009 Update 3 (2026-03-19)
-- 7.4-90075 (2026-06-16)
+- 7.4-90075 (2026-06-16) ==> 7.4.1-90080 (2026-07-23)
 
 > [!NOTE]
 > DSM 7.4 will be the last upgradable version for my DS218+ device, so I can't test this script for newer DSM version branches. Since my device is still working fine, I have no plans to upgrade to a newer model in the near future. Sorry. Unless somebody wants to donate. :)
